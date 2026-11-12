@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Well Closure Field App</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#2f5d50">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- Map view: side panel (search, layers, nearby) beside the full-height map -->
+<div class="app" id="mapView">
+  <aside class="panel">
+    <header class="brand">
+      <h1>Well Closure Field App</h1>
+      <span class="ver">v0.1 prototype</span>
+    </header>
+
+    <form class="search" id="searchForm" autocomplete="off">
+      <input id="q" type="search" placeholder="Licence, location (16-02-073-06W4) or licensee" aria-label="Search wells">
+      <button type="submit">Find</button>
+    </form>
+    <div class="msg" id="msg" role="status"></div>
+
+    <div class="row-btns">
+      <button type="button" class="ghost" id="locate">Locate me</button>
+      <button type="button" class="ghost" id="openSites">My sites <span class="pill num" id="siteCount">0</span></button>
+    </div>
+
+    <section>
+      <h2>Show on map</h2>
+      <div class="chips" id="chips"></div>
+    </section>
+
+    <section>
+      <h2 id="listTitle">Nearby wells</h2>
+      <p class="note" id="listNote">Tap <b>Locate me</b> to list the closest wells awaiting reclamation, or tap a well on the map.</p>
+      <ol class="wlist" id="wlist"></ol>
+    </section>
+
+    <section class="foot">
+      <p class="note">Well data: AER abandoned well file dated 30 January 2025, same as the Alberta Well Closure Atlas. Site records are saved on this device only.</p>
+    </section>
+  </aside>
+
+  <div class="mapwrap" id="mapwrap">
+    <canvas id="map" aria-label="Map of abandoned wells in Alberta" role="img"></canvas>
+    <div class="loading" id="loading">Loading 238,000 well locations…</div>
+    <div class="ctrls">
+      <button type="button" id="zin" aria-label="Zoom in">+</button>
+      <button type="button" id="zout" aria-label="Zoom out">−</button>
+      <button type="button" id="zreset" aria-label="Show all of Alberta" title="Show all of Alberta">⌂</button>
+    </div>
+    <div class="status num" id="status"></div>
+    <div class="card" id="card" hidden></div>
+  </div>
+</div>
+
+<!-- Site record view -->
+<div class="view" id="siteView" hidden>
+  <header class="vbar">
+    <button type="button" class="ghost" id="backFromSite">‹ Map</button>
+    <div class="vtitle" id="siteTitle"></div>
+    <button type="button" class="ghost" id="toReport">Report</button>
+  </header>
+  <div class="vbody" id="siteBody"></div>
+</div>
+
+<!-- My sites view -->
+<div class="view" id="sitesView" hidden>
+  <header class="vbar">
+    <button type="button" class="ghost" id="backFromSites">‹ Map</button>
+    <div class="vtitle"><b>My sites</b></div>
+    <span></span>
+  </header>
+  <div class="vbody" id="sitesBody"></div>
+</div>
+
+<!-- Site report view -->
+<div class="view" id="reportView" hidden>
+  <header class="vbar">
+    <button type="button" class="ghost" id="backFromReport">‹ Site</button>
+    <div class="vtitle"><b>Site report</b></div>
+    <button type="button" class="ghost" id="printReport">Print</button>
+  </header>
+  <div class="vbody report" id="reportBody"></div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="checklists.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

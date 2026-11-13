@@ -9,5 +9,5 @@ Owner: Bob Parkinson. Part of the Abandoned Wells – Alberta venture. Design ou
 - Routes use the hash: #sites, #site-<licence>, #report-<licence>, #packages, #pkg-<id>, #pkgreport-<id>.
 - Roadmap: ../../Well Closure Field App - Roadmap 2026-11-13.docx
 - Checklists live only in `checklists.js` and are a draft for engineering review. Don't present them as AER requirements.
-- Bump `VERSION` in `sw.js` whenever app files or data change.
+- Bump `VERSION` in `sw.js` whenever app files or data change. The service worker is network-first for app files and cache-first for data/; installs bypass the HTTP cache. GitHub Pages caches files for about 10 minutes, so a new version can take that long to show.
 - Done: v0.1 map, search, checklists, photos, offline; v0.2 work packages, package report, package files, landowner details. Next: v0.3 shared cloud data and logins.

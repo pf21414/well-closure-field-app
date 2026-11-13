@@ -181,9 +181,9 @@ canvas#map.selecting{cursor:crosshair}
 .pfields input,.pfields textarea{width:100%}
 .pfields .wide{grid-column:1 / -1}
 .offline{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-radius:8px;background:var(--chip);font-size:.86rem;margin:4px auto 14px}
-.offline .dot{width:10px;height:10px;border-radius:50%;background:var(--na);flex:none}
+.offline .dot{display:block;width:10px;height:10px;border-radius:50%;background:var(--na);flex:0 0 10px;margin:0 4px 0 2px}
 .offline[data-ok="1"] .dot{background:var(--ok)}
-.offline span{flex:1;min-width:0}
+.offline .otxt{flex:1 1 200px;min-width:0}
 .pstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:0 auto 14px}
 .pstats div{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:8px 10px}
 .pstats b{display:block;font:700 1.3rem/1.1 var(--f-display);font-variant-numeric:tabular-nums}

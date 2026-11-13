@@ -1,6 +1,6 @@
 /* Offline support: keep the app and the well data on the device.
    Bump VERSION whenever app files or data change so phones pick up the new copy. */
-const VERSION = "wcfa-v0.2.1";
+const VERSION = "wcfa-v0.2.3";
 const FILES = ["./", "index.html", "app.css", "app.js", "checklists.js", "manifest.webmanifest", "icon.svg",
   "data/wells_b64.txt", "data/wells_ids.txt", "data/wells_meta.json", "data/basemap.json"];
 self.addEventListener("install", e => e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting())));

@@ -576,7 +576,7 @@ async function renderPkg(id){
       <label>Target finish<input type="date" id="p-target" value="${esc(p.target)}"></label>
       <label class="wide">Notes<textarea id="p-notes" placeholder="Scope, client, access instructions">${esc(p.notes)}</textarea></label>
     </div>
-    <div class="offline" id="offline"><span class="dot"></span><span id="offlineTxt">Checking whether this phone is ready to work offline…</span></div>
+    <div class="offline" id="offline"><span class="dot" aria-hidden="true"></span><span class="otxt" id="offlineTxt">Checking whether this phone is ready to work offline…</span></div>
     <div class="pstats">
       <div><b>${g.wells}</b><span>wells</span></div>
       <div><b>${g.started}</b><span>site records started</span></div>
@@ -738,5 +738,6 @@ buildChips();
 refreshSites();
 refreshPackages();
 loadAll().catch(err => { $("loading").textContent = "The well data didn't load. Check your connection and reload."; console.error(err); });
+fetch("sw.js").then(r => r.ok ? r.text() : "").then(t => { const m = t.match(/VERSION\s*=\s*"wcfa-(v[\d.]+)"/); if (m) $("ver").textContent = m[1] + " prototype"; }).catch(() => {});
 if ("serviceWorker" in navigator && !inFrame && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

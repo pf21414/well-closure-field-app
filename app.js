@@ -35,9 +35,22 @@ const openDB = () => dbp ||= new Promise((res, rej) => {
     r.onupgradeneeded = () => { const db = r.result;
       if (!db.objectStoreNames.contains("sites")) db.createObjectStore("sites", {keyPath:"licence"});
       if (!db.objectStoreNames.contains("packages")) db.createObjectStore("packages", {keyPath:"id"}); };
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    // An older copy of the app open in another tab or window holds the old database open and blocks the upgrade.
+    r.onblocked = () => { blockedNote(true); };
+    r.onsuccess = () => { const db = r.result; blockedNote(false);
+      db.onversionchange = () => { db.close(); dbp = null; toast("A newer version of the app opened elsewhere. Reload this page."); };
+      res(db); };
+    r.onerror = () => rej(r.error);
   } catch (e) { rej(e); }
 });
+function blockedNote(on){
+  let el = $("blocked");
+  if (!on){ if (el) el.remove(); return; }
+  if (el) return;
+  el = document.createElement("div"); el.id = "blocked"; el.className = "blocked"; el.setAttribute("role", "alert");
+  el.innerHTML = `<b>Finishing the update</b><span>Another copy of this app is open in a different tab or window. Close it, then this message will clear and your work will save.</span>`;
+  document.body.appendChild(el);
+}
 const DB = store("sites"), PK = store("packages");
 let pkgs = new Map(); // id -> package
 async function refreshPackages(){

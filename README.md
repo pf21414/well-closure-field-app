@@ -1,6 +1,8 @@
-# Well Closure Field App (v0.1 prototype)
+# Well Closure Field App (v0.2 prototype)
 
-A web app for field crews working on abandoned well closure in Alberta. Built in Claude Code, 12 November 2026.
+A web app for field crews working on abandoned well closure in Alberta. v0.1 built 12 November 2026; v0.2 (work packages) 13 November 2026.
+
+Live at https://pf21414.github.io/well-closure-field-app/
 
 ## What it does now
 
@@ -9,6 +11,10 @@ A web app for field crews working on abandoned well closure in Alberta. Built in
 - **Site records.** For any well, start a record with five stages: site assessment, leak checks, decommissioning, remediation and reclamation. Each step takes a status (done, issue, N/A), notes, a reading where one applies, and photos stamped with time and GPS location.
 - **My sites.** A list of every site with a record and its progress.
 - **Site report.** A one-page summary of a site's record, with photos, ready to print or save as PDF.
+- **Work packages (v0.2).** Tap the box button on the map and drag around a group of wells, or add a single well from its card. Each package has a name, crew lead, contractor, start and target dates, notes, and a suggested visit order with straight-line distance.
+- **Package report (v0.2).** Every well in visit order with progress by stage, landowner and access status, plus a list of open issues.
+- **Send to a crew phone (v0.2).** Exports the package and its site records (with photos) as one file, shared by email or text. The crew taps Import package file. The same file brings the crew's records back to the office; the newer copy of each site record wins.
+- **Landowner and access (v0.2).** Each site record has landowner name and contact, land title number, LINC, surface lease, access notes and the date access was confirmed.
 - **Offline.** When served over https or from localhost, the app and well data are cached on the device so it works with no signal.
 
 Records are saved in the browser on that device only. Syncing between devices is a later step.

@@ -22,6 +22,8 @@
       <span class="ver" id="ver">v0.2 prototype</span>
     </header>
 
+    <button type="button" class="syncchip" id="syncChip" data-s="off"><i aria-hidden="true"></i><span>Not signed in · records stay on this device</span></button>
+
     <form class="search" id="searchForm" autocomplete="off">
       <input id="q" type="search" placeholder="Licence, location (16-02-073-06W4) or licensee" aria-label="Search wells">
       <button type="submit">Find</button>
@@ -127,10 +129,22 @@
   <div class="vbody report" id="pkgReportBody"></div>
 </div>
 
+<!-- Account and team view (v0.3) -->
+<div class="view" id="accountView" hidden>
+  <header class="vbar">
+    <button type="button" class="ghost" id="backFromAccount">‹ Map</button>
+    <div class="vtitle"><b>Sign-in and team</b></div>
+    <span></span>
+  </header>
+  <div class="vbody" id="accountBody"></div>
+</div>
+
 <input type="file" id="importFile" accept=".json,application/json" hidden>
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="checklists.js"></script>
+<script src="supabase.js"></script>
 <script src="app.js"></script>
+<script src="sync.js"></script>
 </body>
 </html>

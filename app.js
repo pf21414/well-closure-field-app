@@ -31,10 +31,11 @@ const store = name => (() => {
 let dbp = null;
 const openDB = () => dbp ||= new Promise((res, rej) => {
   try {
-    const r = indexedDB.open("well-field-app", 2);
+    const r = indexedDB.open("well-field-app", 3);
     r.onupgradeneeded = () => { const db = r.result;
       if (!db.objectStoreNames.contains("sites")) db.createObjectStore("sites", {keyPath:"licence"});
-      if (!db.objectStoreNames.contains("packages")) db.createObjectStore("packages", {keyPath:"id"}); };
+      if (!db.objectStoreNames.contains("packages")) db.createObjectStore("packages", {keyPath:"id"});
+      if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta", {keyPath:"k"}); };
     // An older copy of the app open in another tab or window holds the old database open and blocks the upgrade.
     r.onblocked = () => { blockedNote(true); };
     r.onsuccess = () => { const db = r.result; blockedNote(false);
@@ -51,15 +52,16 @@ function blockedNote(on){
   el.innerHTML = `<b>Finishing the update</b><span>Another copy of this app is open in a different tab or window. Close it, then this message will clear and your work will save.</span>`;
   document.body.appendChild(el);
 }
-const DB = store("sites"), PK = store("packages");
+const DB = store("sites"), PK = store("packages"), META = store("meta");
+const syncChanged = () => { try { window.SYNC && window.SYNC.changed(); } catch {} };
 let pkgs = new Map(); // id -> package
 async function refreshPackages(){
-  try { pkgs = new Map((await PK.all()).map(p => [p.id, p])); } catch { pkgs = new Map(); }
+  try { pkgs = new Map((await PK.all()).filter(p => !p.deleted).map(p => [p.id, p])); } catch { pkgs = new Map(); }
   $("pkgCount").textContent = pkgs.size;
   if (activePkg && !pkgs.has(activePkg)) setActivePkg(null);
   draw();
 }
-async function savePkg(p){ p.updated = new Date().toISOString(); try { await PK.put(p); pkgs.set(p.id, p); $("pkgCount").textContent = pkgs.size; } catch { toast("Couldn't save the package on this device."); } }
+async function savePkg(p){ p.updated = new Date().toISOString(); p.dirty = true; try { await PK.put(p); pkgs.set(p.id, p); $("pkgCount").textContent = pkgs.size; syncChanged(); } catch { toast("Couldn't save the package on this device."); } }
 let mySites = new Map(); // licence -> summary
 async function refreshSites(){
   try { const all = await DB.all(); mySites = new Map(all.map(r => [r.licence, r])); }
@@ -204,7 +206,7 @@ function showCard(i){
   card.innerHTML = html; card.hidden = false;
   card.querySelector(".x").onclick = () => showCard(-1);
   $("openSite").onclick = () => go("site-" + w.licence);
-  $("addToPkg").onclick = () => openSheet([i], "this well");
+  $("addToPkg").onclick = () => { if (isCrew()){ toast("Only managers add wells to packages."); return; } openSheet([i], "this well"); };
   draw();
 }
 
@@ -306,7 +308,7 @@ function progress(rec, stageId){
   return {total, done, issue, na, open: total-done-issue-na};
 }
 let cur = null, curTab = STAGES[0].id, saveT = 0;
-function save(){ if (!cur) return; cur.updated = nowIso(); clearTimeout(saveT); saveT = setTimeout(async () => { try { await DB.put(cur); mySites.set(cur.licence, cur); $("siteCount").textContent = mySites.size; markMine(); } catch { toast("Couldn't save on this device. Storage may be full or blocked."); } }, 300); }
+function save(){ if (!cur) return; cur.updated = nowIso(); cur.dirty = true; clearTimeout(saveT); saveT = setTimeout(async () => { try { await DB.put(cur); mySites.set(cur.licence, cur); $("siteCount").textContent = mySites.size; markMine(); syncChanged(); } catch { toast("Couldn't save on this device. Storage may be full or blocked."); } }, 300); }
 
 async function openSite(lic){
   if (ids === null) await idsReady;
@@ -337,8 +339,8 @@ function renderSite(){
       <span class="draftflag">Draft checklist · for engineering review</span>
       <ol class="steps">${st.steps.map(sp => stepHtml(st, sp)).join("")}</ol>
     </div>`;
-  $("f-crew").oninput = e => { cur.crew = e.target.value; save(); };
-  $("f-contractor").oninput = e => { cur.contractor = e.target.value; save(); };
+  $("f-crew").oninput = e => { cur.crew = e.target.value; cur.metaAt = nowIso(); save(); };
+  $("f-contractor").oninput = e => { cur.contractor = e.target.value; cur.metaAt = nowIso(); save(); };
   wireLand();
   for (const b of document.querySelectorAll(".tab")) b.onclick = () => { curTab = b.dataset.t; renderSite(); };
   wireSteps(st);
@@ -351,13 +353,13 @@ function stepHtml(st, sp){
     <div class="seg" role="group" aria-label="Status">${seg}</div>
     ${sp.reading?`<label class="reading">${esc(sp.reading.label)} <input type="number" inputmode="decimal" step="any" id="r-${k}" value="${esc(d.reading??"")}"> ${esc(sp.reading.unit)}</label>`:""}
     <textarea id="n-${k}" placeholder="Notes" aria-label="Notes for ${esc(sp.text)}">${esc(d.note||"")}</textarea>
-    <div class="photos">${(d.photos||[]).map((p,j) => thumbHtml(p, j)).join("")}<label class="addphoto">+ Photo<input type="file" accept="image/*" capture="environment" multiple id="p-${k}"></label></div>
+    <div class="photos">${(d.photos||[]).map((p,j) => p.deleted ? "" : thumbHtml(p, j)).join("")}<label class="addphoto">+ Photo<input type="file" accept="image/*" capture="environment" multiple id="p-${k}"></label></div>
     ${d.at?`<div class="stamp">Last change ${esc(when(d.at))}</div>`:""}
   </li>`;
 }
 const urls = new Map();
 const blobUrl = b => { if (!urls.has(b)) urls.set(b, URL.createObjectURL(b)); return urls.get(b); };
-function thumbHtml(p, j){ return `<div class="thumb"><img src="${blobUrl(p.blob)}" alt="Site photo ${j+1}"><button type="button" class="del" data-j="${j}" aria-label="Remove photo">×</button>${p.lat!=null?`<span class="gps">${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</span>`:""}</div>`; }
+function thumbHtml(p, j){ return `<div class="thumb">${p.blob?`<img src="${blobUrl(p.blob)}" alt="Site photo ${j+1}">`:`<span class="pending">Photo downloads when there's signal</span>`}<button type="button" class="del" data-j="${j}" aria-label="Remove photo">×</button>${p.lat!=null?`<span class="gps">${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</span>`:""}</div>`; }
 function wireSteps(st){
   for (const li of document.querySelectorAll(".step")){
     const k = li.dataset.k; const get = () => (cur.steps[k] ||= {});
@@ -368,10 +370,10 @@ function wireSteps(st){
     li.querySelector("input[type=file]").onchange = async e => { const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
       toast(files.length>1 ? `Adding ${files.length} photos…` : "Adding photo…");
       const pos = await fix();
-      for (const f of files){ try { const blob = await shrink(f); (get().photos ||= []).push({blob, at:nowIso(), lat:pos?.lat ?? null, lon:pos?.lon ?? null, acc:pos?.acc ?? null, name:f.name}); } catch { toast(`Couldn't read ${f.name}.`); } }
+      for (const f of files){ try { const blob = await shrink(f); (get().photos ||= []).push({id:"ph"+Date.now().toString(36)+Math.random().toString(36).slice(2,7), blob, at:nowIso(), lat:pos?.lat ?? null, lon:pos?.lon ?? null, acc:pos?.acc ?? null, name:f.name}); } catch { toast(`Couldn't read ${f.name}.`); } }
       touch(); renderSite();
       toast(pos ? "Photo saved with location." : "Photo saved. No location fix, so it has the time only."); };
-    for (const b of li.querySelectorAll(".thumb .del")) b.onclick = () => { get().photos.splice(+b.dataset.j, 1); touch(); renderSite(); };
+    for (const b of li.querySelectorAll(".thumb .del")) b.onclick = () => { const ph = get().photos[+b.dataset.j]; if (ph.id) { ph.deleted = true; delete ph.blob; } else get().photos.splice(+b.dataset.j, 1); touch(); renderSite(); };
   }
 }
 function refreshTabs(){ for (const b of document.querySelectorAll(".tab")){ const p = progress(cur, b.dataset.t); b.querySelector(".tprog").textContent = `${p.done+p.na}/${p.total}${p.issue?` · ${p.issue} issue${p.issue>1?"s":""}`:""}`; } }
@@ -413,7 +415,7 @@ function landHtml(r){
 let landOpen = false;
 function wireLand(){
   const box = $("landBox"); box.open = landOpen; box.ontoggle = () => { landOpen = box.open; };
-  for (const f of LAND){ const el = $("l-" + f.k); el.oninput = () => { (cur.land ||= {})[f.k] = el.value; save(); }; }
+  for (const f of LAND){ const el = $("l-" + f.k); el.oninput = () => { (cur.land ||= {})[f.k] = el.value; cur.land._at = nowIso(); save(); }; }
 }
 
 /* ---- my sites ---- */
@@ -432,12 +434,13 @@ function renderSites(){
 async function exportAll(){
   const all = [...mySites.values()];
   const toData = b => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); });
-  const out = []; for (const r of all){ const c = structuredClone({...r, steps:{}}); for (const [k,d] of Object.entries(r.steps)){ c.steps[k] = {...d, photos: await Promise.all((d.photos||[]).map(async p => ({...p, blob: await toData(p.blob)})))}; } out.push(c); }
+  const out = []; for (const r of all){ const c = structuredClone({...r, steps:{}}); for (const [k,d] of Object.entries(r.steps)){ c.steps[k] = {...d, photos: await Promise.all((d.photos||[]).filter(p => p.blob).map(async p => ({...p, blob: await toData(p.blob)})))}; } out.push(c); }
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({app:"well-closure-field-app", version:1, exported:nowIso(), sites:out})], {type:"application/json"}));
   a.download = `well-sites-${new Date().toISOString().slice(0,10)}.json`; a.click();
 }
 
 /* ---- report ---- */
+const live = d => (d.photos||[]).filter(p => !p.deleted);
 function renderReport(){
   const r = cur, w = r.well, p = progress(r);
   const label = {done:"Done", issue:"Issue", na:"N/A"};
@@ -454,7 +457,7 @@ function renderReport(){
     ${STAGES.map(st => `<h2>${esc(st.title)}</h2><div class="tw"><table><thead><tr><th>Step</th><th>Status</th><th>Reading</th><th>Notes and photos</th></tr></thead><tbody>
       ${st.steps.map(sp => { const d = r.steps[st.id+"."+sp.id] || {};
         return `<tr><td>${esc(sp.text)}</td><td class="${d.status?"st-"+d.status:""}">${esc(label[d.status]||"Open")}</td><td class="num">${d.reading?esc(d.reading+" "+sp.reading.unit):""}</td>
-        <td>${esc(d.note||"")}${(d.photos||[]).length?`<div class="rphotos">${d.photos.map((ph,j) => `<img src="${blobUrl(ph.blob)}" alt="Photo ${j+1}">`).join("")}</div><div class="note">${d.photos.map(ph => `${when(ph.at)}${ph.lat!=null?` at ${ph.lat.toFixed(5)}, ${ph.lon.toFixed(5)}`:""}`).map(esc).join("; ")}</div>`:""}</td></tr>`; }).join("")}
+        <td>${esc(d.note||"")}${live(d).length?`<div class="rphotos">${live(d).map((ph,j) => ph.blob ? `<img src="${blobUrl(ph.blob)}" alt="Photo ${j+1}">` : "").join("")}</div><div class="note">${live(d).map(ph => `${when(ph.at)}${ph.lat!=null?` at ${ph.lat.toFixed(5)}, ${ph.lon.toFixed(5)}`:""}`).map(esc).join("; ")}</div>`:""}</td></tr>`; }).join("")}
       </tbody></table></div>`).join("")}
     <p class="note" style="margin-top:20px">Checklist steps are a draft for engineering review and are not yet a statement of AER requirements.</p></div>`;
 }
@@ -465,7 +468,7 @@ const newId = () => "p" + Date.now().toString(36) + Math.random().toString(36).s
 const inPkgs = lic => [...pkgs.values()].filter(p => p.wells.includes(lic));
 const idxOf = lic => byLic ? byLic.get(lic) : undefined;
 
-$("selArea").onclick = () => setSelMode(!selMode);
+$("selArea").onclick = () => { if (isCrew()){ toast("Packages are made by managers. Yours appear under Packages."); return; } setSelMode(!selMode); };
 function setSelMode(v){ selMode = v; $("selArea").setAttribute("aria-pressed", v); $("selHint").hidden = !v; cv.classList.toggle("selecting", v); if (v){ showCard(-1); closeSheet(); } }
 addEventListener("keydown", e => { if (e.key==="Escape"){ if (selMode) setSelMode(false); closeSheet(); } });
 
@@ -548,17 +551,27 @@ function pkgProgress(p){ let total = 0, done = 0, issue = 0, started = 0, access
 /* ---- packages list ---- */
 function renderPkgs(){
   const all = [...pkgs.values()].sort((a,b) => b.updated.localeCompare(a.updated));
-  const tools = `<div class="tools"><button type="button" id="pkgNew">New package</button><button type="button" class="ghost" id="pkgImport">Import package file</button></div>`;
+  const tools = isCrew() ? `<div class="tools"><button type="button" class="ghost" id="pkgImport">Import package file</button></div><p class="note" style="margin-top:10px">Packages assigned to you by your manager appear here.</p>` : `<div class="tools"><button type="button" id="pkgNew">New package</button><button type="button" class="ghost" id="pkgImport">Import package file</button></div>`;
   if (!all.length){ $("pkgsBody").innerHTML = `<div class="empty"><b>No work packages yet</b><span>On the map, tap the box button and drag around a group of wells. Or open any well and tap <b>Add to a work package</b>.</span><button type="button" id="goMap2">Go to the map</button></div>${tools}`; $("goMap2").onclick = () => { go(""); setTimeout(() => setSelMode(true), 50); }; }
   else $("pkgsBody").innerHTML = `<ul class="pkgs">${all.map(p => { const g = pkgProgress(p); const pc = v => g.total ? (100*v/g.total).toFixed(1)+"%" : "0%";
     return `<li><button type="button" data-p="${esc(p.id)}"><div class="top"><b>${esc(p.name)}</b><span class="note num">${g.wells} wells · ${g.started} started${g.issue?` · ${g.issue} issue${g.issue>1?"s":""}`:""}</span></div>
       <div class="bar"><span style="width:${pc(g.done)};background:var(--ok)"></span><span style="width:${pc(g.issue)};background:var(--bad)"></span></div>
       <div class="note">${p.crew?`Crew lead ${esc(p.crew)}`:"No crew assigned"}${p.target?` · target ${esc(fmtDate(p.target))}`:""}</div></button></li>`; }).join("")}</ul>${tools}`;
   for (const b of $("pkgsBody").querySelectorAll(".pkgs button")) b.onclick = () => go("pkg-" + b.dataset.p);
-  $("pkgNew").onclick = async () => { const p = {id:newId(), name:"New package", crew:"", contractor:"", start:"", target:"", notes:"", wells:[], created:new Date().toISOString(), updated:""}; await savePkg(p); go("pkg-" + p.id); };
+  if ($("pkgNew")) $("pkgNew").onclick = async () => { const p = {id:newId(), name:"New package", crew:"", contractor:"", start:"", target:"", notes:"", wells:[], created:new Date().toISOString(), updated:""}; await savePkg(p); go("pkg-" + p.id); };
   $("pkgImport").onclick = () => $("importFile").click();
 }
 const fmtDate = d => { if (!d) return ""; const t = new Date(d + "T12:00:00"); return isNaN(t) ? d : t.toLocaleDateString("en-CA", {dateStyle:"medium"}); };
+
+/* ---- roles (v0.3) ---- */
+const role = () => (window.SYNC && window.SYNC.user && window.SYNC.role) || null; // null = not signed in: full local use
+const isCrew = () => role() === "crew";
+function crewField(p){
+  const team = (window.SYNC && window.SYNC.team) || [];
+  if (role() === "manager" && team.length)
+    return `<label>Crew lead<select id="p-crewsel"><option value="">Not assigned</option>${team.map(t => `<option value="${esc(t.email)}" ${p.crewEmail===t.email?"selected":""}>${esc(t.name)} (${esc(t.role)})</option>`).join("")}${p.crew && !team.some(t => t.email===p.crewEmail) ? `<option value="" disabled>${esc(p.crew)} (not on the team)</option>` : ""}</select></label>`;
+  return `<label>Crew lead<input id="p-crew" value="${esc(p.crew)}" placeholder="Name" ${isCrew()?"disabled":""}></label>`;
+}
 
 /* ---- package detail ---- */
 let curPkg = null;
@@ -568,14 +581,15 @@ async function renderPkg(id){
   $("pkgTitle").innerHTML = `<b>${esc(p.name)}</b><small>${p.wells.length} wells${p.crew?` · ${esc(p.crew)}`:""}</small>`;
   const g = pkgProgress(p), km = routeKm(p);
   $("pkgBody").innerHTML = `<div>
-    <div class="pfields">
+    ${isCrew()?`<p class="note" style="margin:0 auto 10px">Your manager assigned you this package. Only managers change its details.</p>`:""}
+    <fieldset class="pfields plain" ${isCrew()?"disabled":""}>
       <label class="wide">Package name<input id="p-name" value="${esc(p.name)}"></label>
-      <label>Crew lead<input id="p-crew" value="${esc(p.crew)}" placeholder="Name"></label>
+      ${crewField(p)}
       <label>Contractor<input id="p-contractor" value="${esc(p.contractor)}" placeholder="Company"></label>
       <label>Start date<input type="date" id="p-start" value="${esc(p.start)}"></label>
       <label>Target finish<input type="date" id="p-target" value="${esc(p.target)}"></label>
       <label class="wide">Notes<textarea id="p-notes" placeholder="Scope, client, access instructions">${esc(p.notes)}</textarea></label>
-    </div>
+    </fieldset>
     <div class="offline" id="offline"><span class="dot" aria-hidden="true"></span><span class="otxt" id="offlineTxt">Checking whether this phone is ready to work offline…</span></div>
     <div class="pstats">
       <div><b>${g.wells}</b><span>wells</span></div>
@@ -586,26 +600,27 @@ async function renderPkg(id){
     </div>
     <div class="tools" style="margin:0 auto 14px">
       <button type="button" id="p-map" ${p.wells.length?"":"disabled"}>Show on map</button>
-      <button type="button" class="ghost" id="p-add">Add wells</button>
+      ${isCrew()?"":`<button type="button" class="ghost" id="p-add">Add wells</button>`}
       ${inFrame?"":`<button type="button" class="ghost" id="p-send" ${p.wells.length?"":"disabled"}>Send to a crew phone</button>`}
-      <button type="button" class="danger" id="p-del">Delete package</button>
+      ${isCrew()?"":`<button type="button" class="danger" id="p-del">Delete package</button>`}
     </div>
     <h2>Suggested visit order${km?` · about ${fmt(Math.round(km))} km between sites, straight line`:""}</h2>
     ${p.wells.length ? `<ol class="pwells">${p.wells.map((l,k) => pwellHtml(l,k)).join("")}</ol>` : `<p class="note">No wells yet. Tap <b>Add wells</b>, then drag a box on the map.</p>`}
   </div>`;
   const bind = (id, key) => { $(id).oninput = e => { p[key] = e.target.value; clearTimeout(bind.t); bind.t = setTimeout(() => { savePkg(p); if (key==="name"||key==="crew") $("pkgTitle").innerHTML = `<b>${esc(p.name)}</b><small>${p.wells.length} wells${p.crew?` · ${esc(p.crew)}`:""}</small>`; if (activePkg===p.id) setActivePkg(p.id); }, 300); }; };
-  bind("p-name","name"); bind("p-crew","crew"); bind("p-contractor","contractor"); bind("p-start","start"); bind("p-target","target"); bind("p-notes","notes");
+  bind("p-name","name"); if ($("p-crew")) bind("p-crew","crew"); bind("p-contractor","contractor");
+  const cs = $("p-crewsel"); if (cs) cs.onchange = () => { const t = ((window.SYNC && window.SYNC.team) || []).find(x => x.email === cs.value); p.crewEmail = cs.value; p.crew = t ? t.name : ""; savePkg(p); $("pkgTitle").innerHTML = `<b>${esc(p.name)}</b><small>${p.wells.length} wells${p.crew?` · ${esc(p.crew)}`:""}</small>`; toast(t ? `Assigned to ${t.name}. It reaches their phone at their next sync.` : "Crew cleared."); }; bind("p-start","start"); bind("p-target","target"); bind("p-notes","notes");
   $("p-map").onclick = () => { setActivePkg(p.id); go(""); requestAnimationFrame(() => requestAnimationFrame(() => fitTo(pkgIdx))); };
-  $("p-add").onclick = () => { setActivePkg(p.id); go(""); setTimeout(() => { if (pkgIdx.length) fitTo(pkgIdx); setSelMode(true); }, 60); };
+  if ($("p-add")) $("p-add").onclick = () => { setActivePkg(p.id); go(""); setTimeout(() => { if (pkgIdx.length) fitTo(pkgIdx); setSelMode(true); }, 60); };
   const send = $("p-send"); if (send) send.onclick = () => exportPkg(p);
-  const del = $("p-del"); del.onclick = async () => {
+  const del = $("p-del"); if (del) del.onclick = async () => {
     if (!del.classList.contains("armed")){ del.classList.add("armed"); del.textContent = "Tap again to delete"; setTimeout(() => { del.classList.remove("armed"); del.textContent = "Delete package"; }, 4000); return; }
-    try { await PK.del(p.id); } catch {} pkgs.delete(p.id); $("pkgCount").textContent = pkgs.size; if (activePkg===p.id) setActivePkg(null);
+    try { if (role() === "manager" && p.syncedAt){ p.deleted = true; p.dirty = true; await PK.put(p); syncChanged(); } else await PK.del(p.id); } catch {} pkgs.delete(p.id); $("pkgCount").textContent = pkgs.size; if (activePkg===p.id) setActivePkg(null);
     toast(`Deleted ${p.name}. Its site records are kept.`); go("packages"); };
   for (const li of $("pkgBody").querySelectorAll(".pwells li")){
     const l = li.dataset.l;
     li.querySelector(".op").onclick = () => go("site-" + l);
-    li.querySelector(".rm").onclick = async () => { p.wells = p.wells.filter(x => x !== l); await savePkg(p); if (activePkg===p.id) setActivePkg(p.id); renderPkg(p.id); toast("Removed from the package."); };
+    const rm = li.querySelector(".rm"); if (rm) rm.onclick = async () => { p.wells = p.wells.filter(x => x !== l); await savePkg(p); if (activePkg===p.id) setActivePkg(p.id); renderPkg(p.id); toast("Removed from the package."); };
   }
   checkOffline();
 }
@@ -617,11 +632,11 @@ function pwellHtml(l, k){
     <div class="tags">${w && w.nominated?'<span class="tag" style="background:var(--nom)">Nominated</span>':""}${w && w.openLeak?'<span class="tag" style="background:var(--vent)">Open leak</span>':""}${r?.land?.accessDate?'<span class="tag" style="background:var(--ok)">Access confirmed</span>':""}</div>
     ${g?`<div class="bar"><span style="width:${pc(g.done)};background:var(--ok)"></span><span style="width:${pc(g.na)};background:var(--na)"></span><span style="width:${pc(g.issue)};background:var(--bad)"></span></div>`:""}
     <div class="note">${esc(w ? w.licensee : "Not in the well data")}${g?` · ${g.done+g.na}/${g.total} steps${g.issue?`, ${g.issue} issue${g.issue>1?"s":""}`:""}`:" · not started"}${r?.land?.owner?` · ${esc(r.land.owner)}`:""}</div></div>
-    <div class="acts"><button type="button" class="op">${r?"Open":"Start"}</button><button type="button" class="ghost rm" aria-label="Remove from package">×</button></div></li>`;
+    <div class="acts"><button type="button" class="op">${r?"Open":"Start"}</button>${isCrew()?"":`<button type="button" class="ghost rm" aria-label="Remove from package">×</button>`}</div></li>`;
 }
 
 /* ---- offline readiness ---- */
-const OFFLINE_FILES = ["index.html","app.css","app.js","checklists.js","data/wells_b64.txt","data/wells_ids.txt","data/wells_meta.json","data/basemap.json"];
+const OFFLINE_FILES = ["index.html","app.css","app.js","checklists.js","supabase.js","sync.js","data/wells_b64.txt","data/wells_ids.txt","data/wells_meta.json","data/basemap.json"];
 async function checkOffline(){
   const box = $("offline"); if (!box) return; const txt = $("offlineTxt");
   if (inFrame || !("caches" in window) || !("serviceWorker" in navigator) || location.protocol==="file:"){ box.dataset.ok = "0"; txt.textContent = "Offline mode works in the installed app at its web address, not in this preview."; return; }
@@ -643,7 +658,7 @@ async function exportPkg(p){
   toast("Preparing the package file…");
   const sites = [];
   for (const l of p.wells){ const r = mySites.get(l); if (!r) continue; const c = {...r, steps:{}};
-    for (const [k,d] of Object.entries(r.steps)) c.steps[k] = {...d, photos: await Promise.all((d.photos||[]).map(async ph => ({...ph, blob: await blobToData(ph.blob)})))};
+    for (const [k,d] of Object.entries(r.steps)) c.steps[k] = {...d, photos: await Promise.all((d.photos||[]).filter(ph => ph.blob).map(async ph => ({...ph, blob: await blobToData(ph.blob)})))};
     sites.push(c); }
   const name = `${p.name.replace(/[^\w\- ]+/g,"").trim().replace(/\s+/g,"-") || "package"}-${new Date().toISOString().slice(0,10)}.json`;
   const file = new File([JSON.stringify({app:"well-closure-field-app", kind:"package", version:2, exported:new Date().toISOString(), package:p, sites})], name, {type:"application/json"});
@@ -701,7 +716,7 @@ function renderPkgReport(){
 
 /* ================= routing ================= */
 function go(h){ if (location.hash.slice(1) === h) route(); else location.hash = h; }
-function show(id){ for (const v of ["siteView","sitesView","reportView","pkgsView","pkgView","pkgReportView"]) $(v).hidden = v !== id; if (id) { closeSheet(); if (selMode) setSelMode(false); } }
+function show(id){ for (const v of ["siteView","sitesView","reportView","pkgsView","pkgView","pkgReportView","accountView"]) $(v).hidden = v !== id; if (id) { closeSheet(); if (selMode) setSelMode(false); } }
 let siteReturn = "", lastHash = "";
 async function route(){
   const h = location.hash.slice(1);
@@ -711,6 +726,7 @@ async function route(){
   else if (h.startsWith("report-")){ const lic = h.slice(7); if (!cur || cur.licence !== lic) await openSite(lic); show("reportView"); renderReport(); }
   else if (h === "sites"){ show("sitesView"); renderSites(); }
   else if (h === "packages"){ show("pkgsView"); renderPkgs(); }
+  else if (h === "account"){ show("accountView"); if (window.SYNC && window.SYNC.renderAccount) window.SYNC.renderAccount(); else $("accountBody").innerHTML = `<p class="note">Sharing is loading…</p>`; }
   else if (h.startsWith("pkg-")){ show("pkgView"); await renderPkg(h.slice(4)); }
   else if (h.startsWith("pkgreport-")){ const id = h.slice(10); if (!pkgs.has(id)){ go("packages"); return; } curPkg = pkgs.get(id); if (ids === null) await idsReady; show("pkgReportView"); renderPkgReport(); }
   else { show(""); if (W){ requestAnimationFrame(resize); if (cur && byLic){ const i = byLic.get(cur.licence); if (i !== undefined) showCard(i); } } }
@@ -718,6 +734,8 @@ async function route(){
 addEventListener("hashchange", route);
 $("openSites").onclick = () => go("sites");
 $("openPkgs").onclick = () => go("packages");
+$("syncChip").onclick = () => go("account");
+$("backFromAccount").onclick = () => go("");
 $("backFromPkgs").onclick = () => go("");
 $("backFromPkg").onclick = () => go("packages");
 $("toPkgReport").onclick = () => go("pkgreport-" + curPkg.id);
@@ -728,6 +746,22 @@ $("backFromSites").onclick = () => go("");
 $("toReport").onclick = () => go("report-" + cur.licence);
 $("backFromReport").onclick = () => go("site-" + cur.licence);
 if (inFrame) $("printReport").hidden = true; else $("printReport").onclick = () => window.print();
+
+/* ================= hooks for sync.js ================= */
+function siteChanged(r){
+  mySites.set(r.licence, r);
+  if (cur && cur.licence === r.licence){
+    const merged = window.SYNC.merge(cur, r); merged.dirty = !!(cur.dirty || r.dirty); if (!merged.dirty) merged.syncedAt = r.syncedAt;
+    cur = merged;
+    const typing = document.activeElement && $("siteView").contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+    if (!$("siteView").hidden && !typing) renderSite();
+    if (!$("reportView").hidden) renderReport();
+  }
+}
+let paintT = 0;
+window.WCFA = { DB, PK, META, esc, toast, refreshSites, refreshPackages, siteChanged, route,
+  syncPainted(){ clearTimeout(paintT); paintT = setTimeout(() => { const h = location.hash.slice(1);
+    if (h === "packages") renderPkgs(); else if (h === "sites") renderSites(); else if (h.startsWith("pkg-") && !(document.activeElement && $("pkgView").contains(document.activeElement))) renderPkg(h.slice(4)); }, 400); } };
 
 /* ================= start ================= */
 const retheme = () => { C = css(); draw(); };

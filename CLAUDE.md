@@ -11,3 +11,10 @@ Owner: Bob Parkinson. Part of the Abandoned Wells – Alberta venture. Design ou
 - Checklists live only in `checklists.js` and are a draft for engineering review. Don't present them as AER requirements.
 - Bump `VERSION` in `sw.js` whenever app files or data change. The service worker is network-first for app files and cache-first for data/; installs bypass the HTTP cache. GitHub Pages caches files for about 10 minutes, so a new version can take that long to show.
 - Done: v0.1 map, search, checklists, photos, offline; v0.2 work packages, package report, package files, landowner details. Next: v0.3 shared cloud data and logins.
+
+## v0.3 shared data (Supabase)
+- Project: well-closure-field-app, org Alberta Well Closure Venture, region Canada (Central), Free plan. URL and publishable key are at the top of `sync.js` (the publishable key is meant to be public; never put the secret key in the app).
+- Tables and access rules: `supabase-setup.sql` (team, packages, sites; private storage bucket `photos` at <licence>/<photo id>.jpg). Managers see all; crews see sites in packages where `crew_email` is theirs.
+- Sign-in: emailed link (implicit flow). The default Supabase email has no code, so the app also accepts the pasted link (iPhone home-screen app). Editing the email needs custom SMTP.
+- `sync.js` merges site records step by step (newest `at` wins), photos by id with deletions kept, `land._at` and `metaAt` for the rest. Packages: managers push, crews read.
+- `supabase.js` is supabase-js 2.118.0 (UMD), vendored so the app works offline.

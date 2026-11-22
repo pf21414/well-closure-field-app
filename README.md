@@ -6,7 +6,7 @@ Live at https://pf21414.github.io/well-closure-field-app/
 
 ## What it does now
 
-- **Map and search.** All 238,158 wells from the AER abandoned-well file (dated 30 January 2025), the same data as the Alberta Well Closure Atlas. Search by licence number, surface location (for example 16-02-073-06W4) or licensee.
+- **Map and search.** All 248,311 abandoned, reclamation-certified and exempt wells from the AER ST37 well list (dated 3 November 2026, with revised abandoned-well locations), the same data as the Alberta Well Closure Atlas. Search by licence number, surface location (for example 16-02-073-06W4) or licensee.
 - **Locate me and nearby wells.** Uses the phone's GPS to list the 15 closest wells awaiting reclamation.
 - **Site records.** For any well, start a record with five stages: site assessment, leak checks, decommissioning, remediation and reclamation. Each step takes a status (done, issue, N/A), notes, a reading where one applies, and photos stamped with time and GPS location.
 - **My sites.** A list of every site with a record and its progress.

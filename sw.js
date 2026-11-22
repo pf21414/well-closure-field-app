@@ -2,7 +2,7 @@
    Bump VERSION whenever app files or data change so phones pick up the new copy.
    App files (html, css, js) are network-first so an update shows on the next open with signal;
    the large well data in data/ is cache-first. Installs bypass the browser's HTTP cache. */
-const VERSION = "wcfa-v0.3.0";
+const VERSION = "wcfa-v0.3.1";
 const FILES = ["./", "index.html", "app.css", "app.js", "checklists.js", "supabase.js", "sync.js", "manifest.webmanifest", "icon.svg",
   "data/wells_b64.txt", "data/wells_ids.txt", "data/wells_meta.json", "data/basemap.json"];
 self.addEventListener("install", e => e.waitUntil(caches.open(VERSION)

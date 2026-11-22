@@ -448,7 +448,7 @@ function renderReport(){
     <h1 class="mono">${esc(w.surf)}</h1>
     <p class="note">Well Closure Field App site report · generated ${esc(when(nowIso()))}</p>
     <div class="meta" style="margin-top:12px">
-      <div><span>Licence</span>${esc(r.licence)}</div><div><span>Licensee</span>${esc(w.licensee)}</div><div><span>Licence status (Jan 2025)</span>${esc(w.status)}</div>
+      <div><span>Licence</span>${esc(r.licence)}</div><div><span>Licensee</span>${esc(w.licensee)}</div><div><span>Licence status (AER, 3 Nov 2026)</span>${esc(w.status)}</div>
       <div><span>Coordinates</span>${w.lat.toFixed(5)}, ${w.lon.toFixed(5)}</div><div><span>Crew lead</span>${esc(r.crew||"Not recorded")}</div><div><span>Contractor</span>${esc(r.contractor||"Not recorded")}</div>
       <div><span>Progress</span>${p.done+p.na} of ${p.total} steps, ${p.issue} issue${p.issue===1?"":"s"}</div><div><span>Last updated</span>${esc(when(r.updated))}</div>
     </div>
@@ -711,7 +711,7 @@ function renderPkgReport(){
     <div class="tw"><table><thead><tr><th>#</th><th>Location</th><th>Licensee</th><th>Landowner</th>${STAGES.map(st => `<th>${esc(st.title)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>
     <h2>Open issues</h2>
     ${issues.length?`<div class="tw"><table><thead><tr><th>Location</th><th>Stage</th><th>Step</th><th>Reading</th><th>Notes</th></tr></thead><tbody>${issues.map(x => `<tr><td class="mono">${esc(x.surf)}</td><td>${esc(x.stage)}</td><td>${esc(x.step)}</td><td class="num">${esc(x.reading)}</td><td>${esc(x.note)}</td></tr>`).join("")}</tbody></table></div>`:`<p class="note">No open issues recorded.</p>`}
-    <p class="note" style="margin-top:20px">Stage columns show steps done or not applicable out of the total, with open issues in brackets. Well status and licensee are from the AER file dated 30 January 2025. Checklist steps are a draft for engineering review.</p></div>`;
+    <p class="note" style="margin-top:20px">Stage columns show steps done or not applicable out of the total, with open issues in brackets. Well status and licensee are from the AER ST37 well list dated 3 November 2026. Checklist steps are a draft for engineering review.</p></div>`;
 }
 
 /* ================= routing ================= */

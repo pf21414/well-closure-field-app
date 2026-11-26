@@ -114,10 +114,17 @@ function render(){
     ctx.fillStyle = C.land; ctx.fill("evenodd"); ctx.lineWidth = dpr; ctx.strokeStyle = C.edge; ctx.stroke(); }
   if (!W) return;
   const img = ctx.getImageData(0,0,cw,ch), buf = new Uint32Array(img.data.buffer);
-  const z = view.s/dpr, sz = z > 900 ? 5 : z > 300 ? 3 : z > 120 ? 2 : 1, half = sz>>1;
+  const z = view.s/dpr, step = z > 900 ? 5 : z > 300 ? 3 : z > 120 ? 2 : 1, half = step>>1;
+  // Province view unchanged; closer in, dots keep growing (in screen points, so phone screens get real size), capped at 12 pt
+  const sz = z > 900 ? Math.max(step, Math.round(dpr * Math.min(12, 2.5 + 2.4*Math.log2(z/900)))) : step;
   const pack = c => { const [r,g,b] = rgb(c); return (255<<24)|(b<<16)|(g<<8)|r; };
+  const packD = c => { const [r,g,b] = rgb(c); return (255<<24)|((b*.62|0)<<16)|((g*.62|0)<<8)|(r*.62|0); };
   const col = [pack(C.aband), pack(C.cert), pack(C.exempt), pack(C.other)];
-  const put = (px, py, c) => { for (let dy=-half; dy<sz-half; dy++){ const yy = py+dy; if (yy<0||yy>=ch) continue; const row = yy*cw; for (let dx=-half; dx<sz-half; dx++){ const xx = px+dx; if (xx>=0&&xx<cw) buf[row+xx] = c; } } };
+  const edge = [packD(C.aband), packD(C.cert), packD(C.exempt), packD(C.other)];
+  // dot footprint: square when tiny, round from 5 px, with a darker rim from 7 px so neighbours stay distinct
+  const hf = sz>>1, ctr = (sz-1)/2 - hf, rr = sz/2, offs = [], rim = [];
+  for (let dy=-hf; dy<sz-hf; dy++) for (let dx=-hf; dx<sz-hf; dx++){ const d = Math.hypot(dx-ctr, dy-ctr); if (sz>=5 && d>rr) continue; offs.push(dx, dy); rim.push(sz>=7 && d>rr-1.3*dpr ? 1 : 0); }
+  const put = (px, py, c, e) => { for (let k=0, j=0; k<offs.length; k+=2, j++){ const xx = px+offs[k], yy = py+offs[k+1]; if (xx<0||yy<0||xx>=cw||yy>=ch) continue; buf[yy*cw+xx] = (e!==undefined && rim[j]) ? e : c; } };
   const n = W.n; W.sx ||= new Float32Array(n); W.sy ||= new Float32Array(n); W.vis ||= new Uint8Array(n);
   let inView = 0; const rings = [];
   for (let i=0;i<n;i++){
@@ -126,12 +133,12 @@ function render(){
     const v = x>=-6 && y>=-6 && x<cw+6 && y<ch+6; W.vis[i] = v ? 1 : 0;
     if (!v || !isShown(i)) continue;
     inView++;
-    if ((W.grp[i]===0 && on.aband) || (W.grp[i]!==0 && on.done)) put(x|0, y|0, highlightLic>=0 && W.lic[i]!==highlightLic ? col[2] : col[W.grp[i]===0?0:W.grp[i]]);
+    if ((W.grp[i]===0 && on.aband) || (W.grp[i]!==0 && on.done)) { const dimmed = highlightLic>=0 && W.lic[i]!==highlightLic, gi = W.grp[i]; put(x|0, y|0, dimmed ? col[2] : col[gi], dimmed ? undefined : edge[gi]); }
     const f = W.flags[i];
     if ((on.nom && f&1) || (on.vent && f&4) || (on.mine && mineIdx.has(i))) rings.push(i);
   }
   ctx.putImageData(img, 0, 0);
-  const r = Math.max(3, Math.min(8, z/150))*dpr;
+  const r = Math.max(Math.max(3, Math.min(8, z/150))*dpr, sz/2 + 3*dpr);
   ctx.lineWidth = 1.6*dpr;
   for (const i of rings){ const f = W.flags[i];
     ctx.strokeStyle = on.mine && mineIdx.has(i) ? C.mine : (on.vent && f&4) ? C.vent : C.nom;
